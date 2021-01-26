@@ -15,6 +15,8 @@ import (
 	"github.com/samirettali/webmonitor/storage"
 )
 
+const userAgent = "Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0"
+
 type Monitor struct {
 	storage  storage.Storage
 	notifier notifier.Notifier
@@ -106,10 +108,15 @@ func request(URL string) (string, error) {
 	}
 
 	// log.Println(fmt.Sprintf("Requesting %s", URL))
-
-	response, err := client.Get(URL)
+	req, err := http.NewRequest("GET", URL, nil)
 	if err != nil {
-		log.Println(fmt.Sprintf("Error while requesting %s: %s", URL, err.Error()))
+		return "", err
+	}
+
+	req.Header.Set("User-Agent", userAgent)
+
+	response, err := client.Do(req)
+	if err != nil {
 		return "", err
 	}
 
