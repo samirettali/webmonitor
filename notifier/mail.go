@@ -3,7 +3,8 @@ package notifier
 import (
 	"fmt"
 	"log"
-	"webmonitor/job"
+
+	"github.com/samirettali/webmonitor/job"
 
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"

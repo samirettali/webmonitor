@@ -3,16 +3,16 @@ package monitor
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-	"webmonitor/job"
-	"webmonitor/notifier"
-	"webmonitor/storage"
+
+	"github.com/samirettali/webmonitor/job"
+	"github.com/samirettali/webmonitor/notifier"
+	"github.com/samirettali/webmonitor/storage"
 )
 
 type Monitor struct {

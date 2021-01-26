@@ -5,9 +5,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"webmonitor/monitor"
-	"webmonitor/notifier"
-	"webmonitor/storage"
+
+	"github.com/samirettali/webmonitor/monitor"
+	"github.com/samirettali/webmonitor/notifier"
+	"github.com/samirettali/webmonitor/storage"
 
 	"github.com/joho/godotenv"
 )

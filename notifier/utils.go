@@ -2,7 +2,8 @@ package notifier
 
 import (
 	"strings"
-	"webmonitor/job"
+
+	"github.com/samirettali/webmonitor/job"
 )
 
 func buildMessage(job *job.Job) string {

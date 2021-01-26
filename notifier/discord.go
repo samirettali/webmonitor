@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-	"webmonitor/job"
+
+	"github.com/samirettali/webmonitor/job"
 )
 
 type Notifier interface {

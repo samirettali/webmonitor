@@ -2,7 +2,8 @@ package storage
 
 import (
 	"sync"
-	"webmonitor/job"
+
+	"github.com/samirettali/webmonitor/job"
 )
 
 type Storage interface {
