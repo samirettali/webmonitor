@@ -76,12 +76,14 @@ func main() {
 	log.Println("Monitor started")
 
 	defer monitor.Stop()
-	handler := api.MonitorHandler{Monitor: monitor}
+	defer storage.Close()
+	handler := api.MonitorHandler{Monitor: monitor, Logger: log}
 
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/checks", handler.Get).Methods(http.MethodGet, http.MethodOptions)
 	router.HandleFunc("/checks", handler.Post).Methods(http.MethodPost, http.MethodOptions)
 	router.HandleFunc("/checks/{id}", handler.Delete).Methods(http.MethodDelete, http.MethodOptions)
+	router.HandleFunc("/checks/{id}", handler.Update).Methods(http.MethodPatch, http.MethodOptions)
 	router.Use(middlewares.Logger)
 	router.Use(mux.CORSMethodMiddleware(router))
 

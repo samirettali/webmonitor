@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/samirettali/webmonitor/storage"
 )
 
+const TIMEOUT = time.Second * 15
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0"
 
 type Monitor struct {
@@ -41,13 +43,15 @@ func NewMonitor(storage storage.Storage, notifier notifier.Notifier, logger logg
 }
 
 func (m *Monitor) recoverJobs() error {
-	jobs, err := m.storage.GetJobs()
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer cancel()
+	jobs, err := m.storage.GetJobs(ctx)
 	if err != nil {
 		return err
 	}
 	for _, job := range jobs {
 		// TODO: This does not scale, group jobs by interval
-		go m.worker(job)
+		go m.worker(&job)
 	}
 	return nil
 }
@@ -70,12 +74,12 @@ func (m *Monitor) Stop() {
 	m.wg.Wait()
 }
 
-func (m *Monitor) Add(check *models.Job) (*models.Job, error) {
+func (m *Monitor) Add(ctx context.Context, check *models.Job) (*models.Job, error) {
 	initialState, _ := request(check.URL)
 	check.State = initialState
 	check.ID = uuid.New().String()
 
-	err := m.storage.SaveJob(check)
+	err := m.storage.SaveJob(ctx, check)
 	if err != nil {
 		return nil, err
 	}
@@ -88,13 +92,17 @@ func (m *Monitor) Add(check *models.Job) (*models.Job, error) {
 	return check, nil
 }
 
-func (m *Monitor) Delete(id string) error {
+func (m *Monitor) Delete(ctx context.Context, id string) error {
 	// TODO use only predefined intervals and have workers fetch jobs every time
-	return m.storage.DeleteJob(id)
+	return m.storage.DeleteJob(ctx, id)
 }
 
-func (m *Monitor) GetChecks() ([]*models.Job, error) {
-	return m.storage.GetJobs()
+func (m *Monitor) Update(ctx context.Context, id string, upd *models.JobUpdate) (models.Job, error) {
+	return m.storage.UpdateJob(ctx, id, upd)
+}
+
+func (m *Monitor) GetChecks(ctx context.Context) ([]models.Job, error) {
+	return m.storage.GetJobs(ctx)
 }
 
 func (m *Monitor) worker(job *models.Job) {
@@ -109,7 +117,7 @@ func (m *Monitor) worker(job *models.Job) {
 	// 	// In this case we want to ignore errors as a page may not exist yet
 	// 	prevBody, _ := request(job.URL)
 
-	m.Logger.Infof("worker %d started on %s with interval %d\n", id, job.URL, job.Interval)
+	m.Logger.Debugf("worker %d started on %s with interval %d\n", id, job.URL, job.Interval)
 	for {
 		select {
 		case <-ticker.C:
@@ -123,11 +131,13 @@ func (m *Monitor) worker(job *models.Job) {
 				if err := m.notifier.Notify(job); err != nil {
 					m.Logger.Error("can't send notification", err)
 				}
-				job.State = body
-				m.storage.UpdateJobState(job)
+				upd := models.JobUpdate{State: &body}
+				ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+				m.storage.UpdateJob(ctx, job.ID, &upd)
+				cancel()
 			}
 		case <-m.quit:
-			m.Logger.Errorf("worker %d stopped\n", id)
+			m.Logger.Debugf("worker %d stopped\n", id)
 			return
 		}
 	}

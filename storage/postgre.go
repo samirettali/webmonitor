@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/samirettali/webmonitor/logger"
 	"github.com/samirettali/webmonitor/models"
@@ -22,7 +22,7 @@ type PostgreStorage struct {
 	Logger logger.Logger
 
 	sync.Mutex
-	db *sql.DB
+	db *sqlx.DB
 }
 
 type Duration time.Duration
@@ -34,7 +34,7 @@ var ErrPostgreDown = errors.New("PostgreSQL is down")
 func (s *PostgreStorage) Init() error {
 	var err error
 	if s.db == nil {
-		s.db, err = sql.Open("postgres", s.URI)
+		s.db, err = sqlx.Open("postgres", s.URI)
 		if err != nil {
 			return err
 		}
@@ -77,101 +77,79 @@ func (s *PostgreStorage) initTable() error {
 	return nil
 }
 
-// func (s *PostgreStorage) dbExists() (bool, error) {
-// 	statement := fmt.Sprintf(`SELECT EXISTS(SELECT datname FROM pg_catalog.pg_database WHERE datname = %s);`, s.Database)
-// 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-// 	defer cancel()
-// 	row := s.db.QueryRowContext(ctx, statement)
-// 	exists := false
-// 	err := row.Scan(&exists)
-// 	if err != nil {
-// 		return false, err
-// 	}
-// 	return exists, nil
-// }
-
-// func (s *PostgreStorage) initDatabase() error {
-// 	exists, err := s.dbExists()
-// 	if err != nil {
-// 		return errors.Wrap(err, "database exists failed")
-// 	}
-
-// 	// Cleaner IMO
-// 	if exists {
-// 		return nil
-// 	}
-
-// 	statement := fmt.Sprintf(`CREATE DATABASE %s;`, s.Database)
-// 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-// 	defer cancel()
-// 	_, err = s.db.ExecContext(ctx, statement)
-// 	return err
-// }
-
 func (s *PostgreStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgreStorage) SaveJob(job *models.Job) error {
-	query := fmt.Sprintf(`INSERT INTO %s (id, url, interval, state, email) VALUES($1, $2, $3, $4, $5)`, s.Table)
-	_, err := s.db.Exec(query, job.ID, job.URL, job.Interval, job.State, job.Email)
+func (s *PostgreStorage) SaveJob(ctx context.Context, job *models.Job) error {
+	query := fmt.Sprintf("INSERT INTO %s (id, url, interval, state, email) VALUES(:id, :url, :interval, :state, :email)", s.Table)
+	_, err := s.db.NamedExecContext(ctx, query, job)
 	return err
 }
 
-func (s *PostgreStorage) GetJobs() ([]*models.Job, error) {
-	var jobs []*models.Job
-	var err error
-	query := fmt.Sprintf(`SELECT * FROM %s`, s.Table)
-
-	rows, err := s.db.Query(query)
+func (s *PostgreStorage) GetJobs(ctx context.Context) ([]models.Job, error) {
+	var jobs []models.Job
+	query := fmt.Sprintf("SELECT * FROM %s", s.Table)
+	err := s.db.Select(&jobs, query)
 	if err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-	for rows.Next() {
-		job := new(models.Job)
-		if err := rows.Scan(&job.ID, &job.URL, &job.Interval, &job.State, &job.Email); err != nil {
-			return nil, err
-		}
+	return jobs, nil
 
-		jobs = append(jobs, job)
-	}
+	// defer rows.Close()
+	// for rows.Next() {
+	// 	job := new(models.Job)
+	// 	if err := rows.Scan(&job.ID, &job.URL, &job.Interval, &job.State, &job.Email); err != nil {
+	// 		return nil, err
+	// 	}
 
-	return jobs, err
+	// 	jobs = append(jobs, job)
+	// }
+
+	// return jobs, err
 }
 
-func (s *PostgreStorage) UpdateJobState(job *models.Job) error {
-	statement := `UPDATE checks SET state = $2 WHERE id = $1`
-	_, err := s.db.Exec(statement, job.ID, job.State)
-	return err
-}
-
-func (s *PostgreStorage) GetJob(id string) (*models.Job, error) {
-	var url string
-	var interval uint64
-	var state string
-	var email string
-	query := fmt.Sprintf(`SELECT url, interval, state, email FROM %s`, s.Table)
-	_, err := s.db.Exec(query, url, interval, state, email)
+func (s *PostgreStorage) UpdateJob(ctx context.Context, id string, upd *models.JobUpdate) (models.Job, error) {
+	var job models.Job
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
+	err := s.db.GetContext(ctx, &job, query, id)
 	if err != nil {
-		return nil, err
+		return models.Job{}, err
 	}
-	job := models.Job{
-		ID:       id,
-		URL:      url,
-		Interval: interval,
-		State:    state,
-		Email:    email,
+
+	if upd.Email != nil {
+		job.Email = *upd.Email
 	}
-	return &job, nil
-	// job := new(models.Job)
-	// err := s.db.Model(job).Where("id = ?").Select()
-	// return job, err
-	// return nil, fmt.Errorf("%q: %w", id, ErrNotFound)
+
+	if upd.Interval != nil {
+		job.Interval = *upd.Interval
+	}
+
+	if upd.URL != nil {
+		job.URL = *upd.URL
+	}
+
+	statement := fmt.Sprintf("UPDATE %s SET email = :email, interval = :interval, url = :url WHERE id = :id", s.Table)
+	_, err = s.db.NamedExecContext(ctx, statement, &job)
+	if err != nil {
+		return models.Job{}, nil
+	}
+
+	return job, nil
 }
 
-func (s *PostgreStorage) DeleteJob(id string) error {
+func (s *PostgreStorage) GetJob(ctx context.Context, id string) (models.Job, error) {
+	var job models.Job
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
+	err := s.db.GetContext(ctx, &job, query, id)
+	if err != nil {
+		return models.Job{}, err
+	}
+	return job, nil
+}
+
+func (s *PostgreStorage) DeleteJob(ctx context.Context, id string) error {
 	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.Table)
 	_, err := s.db.Exec(query, id)
 	if err != nil {
@@ -179,29 +157,6 @@ func (s *PostgreStorage) DeleteJob(id string) error {
 	}
 	return nil
 }
-
-// func (s *PostgreStorage) GetJobState(id string) (string, error) {
-// 	state, ok := s.states[id]
-// 	if !ok {
-// 		return "", fmt.Errorf("%q: %w", id, ErrNotFound)
-// 	}
-// 	return state, nil
-// }
-
-// func createSchema(db *pg.DB) error {
-// 	models := []interface{}{
-// 		(*models.Job)(nil),
-// 	}
-// 	for _, model := range models {
-// 		err := db.Model(model).CreateTable(&orm.CreateTableOptions{
-// 			Temp: true,
-// 		})
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
 
 // Value converts Duration to a primitive value ready to written to a database.
 func (d Duration) Value() (driver.Value, error) {
