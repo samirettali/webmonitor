@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/samirettali/webmonitor/job"
+	"github.com/samirettali/webmonitor/models"
 )
 
 type Notifier interface {
-	Notify(job *job.Job) error
+	Notify(job *models.Job) error
 }
 
 type DiscordNotifier struct {

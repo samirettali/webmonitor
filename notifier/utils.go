@@ -3,10 +3,10 @@ package notifier
 import (
 	"strings"
 
-	"github.com/samirettali/webmonitor/job"
+	"github.com/samirettali/webmonitor/models"
 )
 
-func buildMessage(job *job.Job) string {
+func buildMessage(job *models.Job) string {
 	b := strings.Builder{}
 	b.WriteString("Detected difference on ")
 	b.WriteString(job.URL)

@@ -1,38 +1,38 @@
 package monitor
 
 import (
-	"context"
-	"errors"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/samirettali/webmonitor/job"
+	"github.com/google/uuid"
+	"github.com/samirettali/webmonitor/logger"
+	"github.com/samirettali/webmonitor/models"
 	"github.com/samirettali/webmonitor/notifier"
 	"github.com/samirettali/webmonitor/storage"
 )
 
-const userAgent = "Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0"
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0"
 
 type Monitor struct {
 	storage  storage.Storage
 	notifier notifier.Notifier
+	Logger   logger.Logger
 	wg       *sync.WaitGroup
 	quit     chan struct{}
 	nextID   int
 	sync.Mutex
 }
 
-func NewMonitor(storage storage.Storage, notifier notifier.Notifier) *Monitor {
+func NewMonitor(storage storage.Storage, notifier notifier.Notifier, logger logger.Logger) *Monitor {
 	wg := &sync.WaitGroup{}
 	quit := make(chan struct{})
 	nextID := 1
 	return &Monitor{
 		storage,
 		notifier,
+		logger,
 		wg,
 		quit,
 		nextID,
@@ -40,63 +40,94 @@ func NewMonitor(storage storage.Storage, notifier notifier.Notifier) *Monitor {
 	}
 }
 
-func (m *Monitor) recoverJobs() {
-	for _, job := range m.storage.GetAll() {
+func (m *Monitor) recoverJobs() error {
+	jobs, err := m.storage.GetJobs()
+	if err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		// TODO: This does not scale, group jobs by interval
 		go m.worker(job)
 	}
+	return nil
 }
 
-func (m *Monitor) Start() {
-	m.recoverJobs()
-	go m.startHTTPServer()
+func (m *Monitor) Start() error {
+	if err := m.storage.Init(); err != nil {
+		return err
+	}
+
+	if err := m.recoverJobs(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Monitor) Stop() {
 	close(m.quit)
+	// err := m.storage.Close()
+	m.storage.Close()
 	m.wg.Wait()
 }
 
-func (m *Monitor) Add(job *job.Job) error {
-	err := m.storage.Save(job)
+func (m *Monitor) Add(check *models.Job) (*models.Job, error) {
+	initialState, _ := request(check.URL)
+	check.State = initialState
+	check.ID = uuid.New().String()
+
+	err := m.storage.SaveJob(check)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	go m.worker(job)
-	return nil
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.worker(check)
+	}()
+	return check, nil
 }
 
-func (m *Monitor) worker(job *job.Job) {
-	m.wg.Add(1)
-	defer m.wg.Done()
+func (m *Monitor) Delete(id string) error {
+	// TODO use only predefined intervals and have workers fetch jobs every time
+	return m.storage.DeleteJob(id)
+}
+
+func (m *Monitor) GetChecks() ([]*models.Job, error) {
+	return m.storage.GetJobs()
+}
+
+func (m *Monitor) worker(job *models.Job) {
 	m.Lock()
 	id := m.nextID
 	m.nextID++
 	m.Unlock()
 
-	ticker := time.NewTicker(job.Interval)
+	interval := time.Duration(job.Interval)
+	ticker := time.NewTicker(interval * time.Second)
 
-	// In this case we want to ignore errors as a page may not exist yet
-	prevBody, _ := request(job.URL)
+	// 	// In this case we want to ignore errors as a page may not exist yet
+	// 	prevBody, _ := request(job.URL)
 
-	log.Printf("worker %d started\n", id)
+	m.Logger.Infof("worker %d started on %s with interval %d\n", id, job.URL, job.Interval)
 	for {
 		select {
 		case <-ticker.C:
 			body, err := request(job.URL)
 			if err != nil {
-				log.Printf("Error while requesting %s\n", job.URL)
+				// log.Printf("Error while requesting %s\n", job.URL)
 				continue
 			}
-			if body != prevBody {
-				log.Printf("Body of %s changed\n", job.URL)
+			if body != job.State {
+				m.Logger.Infof("Body of %s changed\n", job.URL)
 				if err := m.notifier.Notify(job); err != nil {
-					log.Println("can't send notification", err)
+					m.Logger.Error("can't send notification", err)
 				}
-				prevBody = body
+				job.State = body
+				m.storage.UpdateJobState(job)
 			}
 		case <-m.quit:
-			log.Printf("worker %d stopped\n", id)
+			m.Logger.Errorf("worker %d stopped\n", id)
 			return
 		}
 	}
@@ -113,7 +144,7 @@ func request(URL string) (string, error) {
 		return "", err
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", USER_AGENT)
 
 	response, err := client.Do(req)
 	if err != nil {
@@ -130,74 +161,72 @@ func request(URL string) (string, error) {
 	return string(body), nil
 }
 
-func (m *Monitor) addHandler(w http.ResponseWriter, r *http.Request) {
-	URL := r.URL.Query().Get("url")
-	if URL == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Missing URL"))
-		return
-	}
+// func (m *Monitor) addHandler(w http.ResponseWriter, r *http.Request) {
+// 	URL := r.URL.Query().Get("url")
+// 	if URL == "" {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		w.Write([]byte("Missing URL"))
+// 		return
+// 	}
 
-	intervalString := r.URL.Query().Get("interval")
-	if URL == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Missing interval"))
-		return
-	}
+// 	intervalString := r.URL.Query().Get("interval")
+// 	if URL == "" {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		w.Write([]byte("Missing interval"))
+// 		return
+// 	}
 
-	email := r.URL.Query().Get("email")
+// 	email := r.URL.Query().Get("email")
 
-	if email == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Missing email"))
-		return
-	}
+// 	if email == "" {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		w.Write([]byte("Missing email"))
+// 		return
+// 	}
 
-	intervalInt, err := strconv.Atoi(intervalString)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Invalid interval"))
-		return
-	}
+// 	intervalInt, err := strconv.Atoi(intervalString)
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		w.Write([]byte("Invalid interval"))
+// 		return
+// 	}
 
-	interval := time.Second * time.Duration(intervalInt)
+// 	interval := time.Second * time.Duration(intervalInt)
 
-	job := job.Job{
-		URL:      URL,
-		Interval: interval,
-		Email:    email,
-	}
+// 	if err := m.Add(URL, interval, email); err != nil {
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		w.Write([]byte(err.Error()))
+// 		return
+// 	}
 
-	m.Add(&job)
+// 	w.WriteHeader(http.StatusOK)
+// 	w.Write([]byte("Ok"))
+// }
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Ok"))
-}
+// func (m *Monitor) startHTTPServer() {
+// 	m.wg.Add(1)
+// 	defer m.wg.Done()
+// 	addr := ":7171"
+// 	mux := http.NewServeMux()
+// 	server := http.Server{Addr: addr, Handler: mux}
 
-func (m *Monitor) startHTTPServer() {
-	m.wg.Add(1)
-	defer m.wg.Done()
-	addr := ":7171"
-	mux := http.NewServeMux()
-	server := http.Server{Addr: addr, Handler: mux}
+// 	mux.HandleFunc("/add", m.addHandler)
 
-	mux.HandleFunc("/add", m.addHandler)
+// 	go func() {
+// 		err := server.ListenAndServe()
+// 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+// 			// s.Logger.Error(err)
+// 			log.Println(err)
+// 		}
+// 	}()
 
-	go func() {
-		err := server.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			// s.Logger.Error(err)
-			log.Println(err)
-		}
-	}()
+// 	// m.Logger.Infof("Listening on %s", addr)
+// 	log.Printf("Listening on %s\n", addr)
 
-	// m.Logger.Infof("Listening on %s", addr)
-	log.Printf("Listening on %s\n", addr)
-
-	<-m.quit
-	tc, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	server.Shutdown(tc)
-	// s.Logger.Debug("HTTP server shutdown")
-	log.Println("HTTP server shutdown")
-}
+// 	<-m.quit
+// 	tc, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// 	defer cancel()
+// 	server.Shutdown(tc)
+// 	// s.Logger.Debug("HTTP server shutdown")
+// 	log.Println("HTTP server shutdown")
+// }
