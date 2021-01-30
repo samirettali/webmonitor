@@ -111,6 +111,9 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	srv.Shutdown(ctx)
+	err := srv.Shutdown(ctx)
+	if err != nil {
+		log.Error(err)
+	}
 	os.Exit(0)
 }
