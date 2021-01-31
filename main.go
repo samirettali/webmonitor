@@ -76,7 +76,7 @@ func main() {
 	log.Println("Monitor started")
 
 	defer monitor.Stop()
-	defer storage.Close()
+
 	handler := api.MonitorHandler{Monitor: monitor, Logger: log}
 
 	router := mux.NewRouter().StrictSlash(true)
