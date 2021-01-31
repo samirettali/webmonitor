@@ -110,6 +110,7 @@ func (s *PostgreStorage) GetJobs(ctx context.Context) ([]models.Job, error) {
 	// return jobs, err
 }
 
+// TODO make this more efficient, use a query builder maybe
 func (s *PostgreStorage) UpdateJob(ctx context.Context, id string, upd *models.JobUpdate) (models.Job, error) {
 	var job models.Job
 	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
@@ -130,10 +131,16 @@ func (s *PostgreStorage) UpdateJob(ctx context.Context, id string, upd *models.J
 		job.URL = *upd.URL
 	}
 
-	statement := fmt.Sprintf("UPDATE %s SET email = :email, interval = :interval, url = :url WHERE id = :id", s.Table)
+	if upd.State != nil {
+		job.State = *upd.State
+	}
+
+	s.Logger.Infof("Updating job %s", job.ID)
+
+	statement := fmt.Sprintf("UPDATE %s SET email = :email, interval = :interval, url = :url, state = :state WHERE id = :id", s.Table)
 	_, err = s.db.NamedExecContext(ctx, statement, &job)
 	if err != nil {
-		return models.Job{}, nil
+		return models.Job{}, err
 	}
 
 	return job, nil
