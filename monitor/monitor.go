@@ -127,13 +127,17 @@ func (m *Monitor) worker(job *models.Job) {
 				continue
 			}
 			if body != job.State {
-				m.Logger.Infof("Body of %s changed\n", job.URL)
+				job.State = body
+				m.Logger.Infof("Check %s changed\n", job.ID)
 				if err := m.notifier.Notify(job); err != nil {
 					m.Logger.Error("can't send notification", err)
 				}
 				upd := models.JobUpdate{State: &body}
 				ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-				m.storage.UpdateJob(ctx, job.ID, &upd)
+				_, err := m.Update(ctx, job.ID, &upd)
+				if err != nil {
+					m.Logger.Error(err)
+				}
 				cancel()
 			}
 		case <-m.quit:
