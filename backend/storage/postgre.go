@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"sync"
 	"time"
@@ -23,8 +22,6 @@ type PostgreStorage struct {
 	sync.Mutex
 	db *sqlx.DB
 }
-
-type Duration time.Duration
 
 const TIMEOUT = time.Second * 15
 
@@ -153,24 +150,6 @@ func (s *PostgreStorage) DeleteJob(ctx context.Context, id string) error {
 	_, err := s.db.Exec(query, id)
 	if err != nil {
 		return err
-	}
-	return nil
-}
-
-// Value converts Duration to a primitive value ready to written to a database.
-func (d Duration) Value() (driver.Value, error) {
-	return driver.Value(int64(d)), nil
-}
-
-// Scan reads a Duration value from database driver type.
-func (d *Duration) Scan(raw interface{}) error {
-	switch v := raw.(type) {
-	case int64:
-		*d = Duration(time.Duration(v) * time.Second)
-	case nil:
-		*d = Duration(0)
-	default:
-		return fmt.Errorf("cannot sql.Scan() strfmt.Duration from: %#v", v)
 	}
 	return nil
 }
