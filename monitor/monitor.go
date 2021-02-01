@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/samirettali/webmonitor/logger"
 	"github.com/samirettali/webmonitor/models"
 	"github.com/samirettali/webmonitor/notifier"
@@ -23,47 +24,55 @@ type Monitor struct {
 	Logger   logger.Logger
 	wg       *sync.WaitGroup
 	quit     chan struct{}
-	nextID   int
+	sem      chan struct{}
 	sync.Mutex
 }
 
 func NewMonitor(storage storage.Storage, notifier notifier.Notifier, logger logger.Logger) *Monitor {
 	wg := &sync.WaitGroup{}
 	quit := make(chan struct{})
-	nextID := 1
+	sem := make(chan struct{}, 40)
 	return &Monitor{
 		storage,
 		notifier,
 		logger,
 		wg,
 		quit,
-		nextID,
+		sem,
 		sync.Mutex{},
 	}
 }
 
-func (m *Monitor) recoverJobs() error {
-	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-	defer cancel()
-	jobs, err := m.storage.GetJobs(ctx)
-	if err != nil {
-		return err
-	}
-	for _, job := range jobs {
-		// TODO: This does not scale, group jobs by interval
-		go m.worker(&job)
-	}
-	return nil
-}
+var (
+	INTERVALS = []uint64{1, 3, 15, 60, 300, 600}
+)
+
+// func (m *Monitor) recoverJobs() error {
+// 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+// 	defer cancel()
+// 	jobs, err := m.storage.GetJobs(ctx)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, job := range jobs {
+// 		// TODO: This does not scale, group jobs by interval
+// 		go m.worker(job.ID)
+// 	}
+// 	return nil
+// }
 
 func (m *Monitor) Start() error {
 	if err := m.storage.Init(); err != nil {
 		return err
 	}
 
-	if err := m.recoverJobs(); err != nil {
-		return err
+	for _, interval := range INTERVALS {
+		go m.worker(interval)
 	}
+
+	// if err := m.recoverJobs(); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -74,21 +83,123 @@ func (m *Monitor) Stop() {
 	m.wg.Wait()
 }
 
+func (m *Monitor) worker(interval uint64) {
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	m.Logger.Debugf("worker for interval %d started\n", interval)
+
+	// ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+	// defer cancel()
+	// job, err := m.storage.GetJob(ctx, id)
+
+	// 	// In this case we want to ignore errors as a page may not exist yet
+	// 	prevBody, _ := request(job.URL)
+
+	for {
+		select {
+		case <-ticker.C:
+			err := m.runChecks(interval)
+			if err != nil {
+				m.Logger.Error(err)
+			}
+		case <-m.quit:
+			// m.Logger.Debugf("worker %d stopped\n", job.ID)
+			return
+		}
+	}
+}
+
+func (m *Monitor) runChecks(interval uint64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer cancel()
+
+	checks, err := m.storage.GetJobsByInterval(ctx, interval)
+	if err != nil {
+		werr := errors.Wrap(err, "runChecks can't get jobs")
+		return werr
+		// return []error{werr}
+	}
+
+	if len(checks) == 0 {
+		return nil
+	}
+
+	m.Logger.Debugf("running %d checks for interval %d", len(checks), interval)
+	defer m.Logger.Debugf("ended checks for interval %d", interval)
+
+	var wg sync.WaitGroup
+	// errChan := make(chan error)
+	wg.Add(len(checks))
+
+	for _, check := range checks {
+		m.sem <- struct{}{}
+		go func(check *models.Job) {
+			m.runCheck(check)
+			err := m.runCheck(check)
+			if err != nil {
+				// errChan <- err
+				m.Logger.Error(err)
+			}
+			<-m.sem
+			wg.Done()
+			// close(errChan)
+		}(&check)
+	}
+	wg.Wait()
+	// close(errChan)
+
+	/* errs := make([]error, 0)
+	for err := range errChan {
+		errs = append(errs, err)
+	}
+	*/
+	/* if len(errs) > 0 {
+		return errs
+	} */
+
+	return nil
+}
+
+func (m *Monitor) runCheck(check *models.Job) error {
+	body, err := request(check.URL)
+	if err != nil {
+		return err
+	}
+
+	if body == check.State {
+		return nil
+	}
+
+	// check.State = body
+	err = m.notifier.Notify(check)
+	if err != nil {
+		return errors.Wrap(err, "can't sent notification")
+	}
+
+	upd := models.JobUpdate{State: &body}
+	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer cancel()
+
+	_, err = m.Update(ctx, check.ID, &upd)
+	if err != nil {
+		return errors.Wrap(err, "can't update job")
+	}
+
+	return nil
+}
+
 func (m *Monitor) Add(ctx context.Context, check *models.Job) (*models.Job, error) {
-	initialState, _ := request(check.URL)
+	initialState, err := request(check.URL)
+	if err != nil {
+		return nil, errors.Wrap(err, "can't fetch page")
+	}
 	check.State = initialState
 	check.ID = uuid.New().String()
 
-	err := m.storage.SaveJob(ctx, check)
+	err = m.storage.SaveJob(ctx, check)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "can't save check")
 	}
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		m.worker(check)
-	}()
 	return check, nil
 }
 
@@ -104,49 +215,6 @@ func (m *Monitor) Update(ctx context.Context, id string, upd *models.JobUpdate) 
 func (m *Monitor) GetChecks(ctx context.Context) ([]models.Job, error) {
 	return m.storage.GetJobs(ctx)
 }
-
-func (m *Monitor) worker(job *models.Job) {
-	m.Lock()
-	id := m.nextID
-	m.nextID++
-	m.Unlock()
-
-	interval := time.Duration(job.Interval)
-	ticker := time.NewTicker(interval * time.Second)
-
-	// 	// In this case we want to ignore errors as a page may not exist yet
-	// 	prevBody, _ := request(job.URL)
-
-	m.Logger.Debugf("worker %d started on %s with interval %d\n", id, job.URL, job.Interval)
-	for {
-		select {
-		case <-ticker.C:
-			body, err := request(job.URL)
-			if err != nil {
-				// log.Printf("Error while requesting %s\n", job.URL)
-				continue
-			}
-			if body != job.State {
-				job.State = body
-				m.Logger.Infof("Check %s changed\n", job.ID)
-				if err := m.notifier.Notify(job); err != nil {
-					m.Logger.Error("can't send notification", err)
-				}
-				upd := models.JobUpdate{State: &body}
-				ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-				_, err := m.Update(ctx, job.ID, &upd)
-				if err != nil {
-					m.Logger.Error(err)
-				}
-				cancel()
-			}
-		case <-m.quit:
-			m.Logger.Debugf("worker %d stopped\n", id)
-			return
-		}
-	}
-}
-
 func request(URL string) (string, error) {
 	client := &http.Client{
 		Timeout: time.Second * 10,

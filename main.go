@@ -68,7 +68,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	notifier := notifier.NewEmailNotifier(sender, sendgridApiKey)
+	notifier := notifier.NewEmailNotifier(sender, sendgridApiKey, log)
 	monitor := monitor.NewMonitor(storage, notifier, log)
 
 	if err := monitor.Start(); err != nil {

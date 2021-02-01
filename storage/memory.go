@@ -15,7 +15,8 @@ type Storage interface {
 	GetJobs(ctx context.Context) ([]models.Job, error)
 	UpdateJob(ctx context.Context, id string, upd *models.JobUpdate) (models.Job, error)
 	DeleteJob(ctx context.Context, id string) error
-	// GetJobState(id string) (string, error)
+	// TODO implement get method using a filter struct
+	GetJobsByInterval(ctx context.Context, interval uint64) ([]models.Job, error)
 }
 
 type MemoryStorage struct {

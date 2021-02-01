@@ -29,8 +29,6 @@ type Duration time.Duration
 
 const TIMEOUT = time.Second * 15
 
-var ErrPostgreDown = errors.New("PostgreSQL is down")
-
 func (s *PostgreStorage) Init() error {
 	var err error
 	if s.db == nil {
@@ -44,13 +42,7 @@ func (s *PostgreStorage) Init() error {
 	defer cancel()
 	if err = s.db.PingContext(ctx); err != nil {
 		return errors.Wrap(err, "cannot ping db")
-		// return ErrPostgreDown
 	}
-
-	// err = s.initDatabase()
-	// if err != nil {
-	// 	return err
-	// }
 
 	err = s.initTable()
 	if err != nil {
@@ -61,12 +53,15 @@ func (s *PostgreStorage) Init() error {
 }
 
 func (s *PostgreStorage) initTable() error {
+	s.Logger.Infof("creating table %s", s.Table)
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		id TEXT PRIMARY KEY NOT NULL,
+		name TEXT NOT NULL,
 		url TEXT NOT NULL,
 		interval BIGINT NOT NULL,
 		state TEXT NOT NULL,
-		email TEXT
+		email TEXT NOT NULL,
+		active BOOLEAN NOT NULL
 	);`, s.Table)
 
 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
@@ -82,7 +77,7 @@ func (s *PostgreStorage) Close() error {
 }
 
 func (s *PostgreStorage) SaveJob(ctx context.Context, job *models.Job) error {
-	query := fmt.Sprintf("INSERT INTO %s (id, url, interval, state, email) VALUES(:id, :url, :interval, :state, :email)", s.Table)
+	query := fmt.Sprintf("INSERT INTO %s (id, name, url, interval, state, email, active) VALUES(:id, :name, :url, :interval, :state, :email, :active)", s.Table)
 	_, err := s.db.NamedExecContext(ctx, query, job)
 	return err
 }
@@ -96,18 +91,6 @@ func (s *PostgreStorage) GetJobs(ctx context.Context) ([]models.Job, error) {
 	}
 
 	return jobs, nil
-
-	// defer rows.Close()
-	// for rows.Next() {
-	// 	job := new(models.Job)
-	// 	if err := rows.Scan(&job.ID, &job.URL, &job.Interval, &job.State, &job.Email); err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	jobs = append(jobs, job)
-	// }
-
-	// return jobs, err
 }
 
 // TODO make this more efficient, use a query builder maybe
@@ -137,7 +120,7 @@ func (s *PostgreStorage) UpdateJob(ctx context.Context, id string, upd *models.J
 
 	s.Logger.Infof("Updating job %s", job.ID)
 
-	statement := fmt.Sprintf("UPDATE %s SET email = :email, interval = :interval, url = :url, state = :state WHERE id = :id", s.Table)
+	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, state = :state WHERE id = :id", s.Table)
 	_, err = s.db.NamedExecContext(ctx, statement, &job)
 	if err != nil {
 		return models.Job{}, err
@@ -154,6 +137,16 @@ func (s *PostgreStorage) GetJob(ctx context.Context, id string) (models.Job, err
 		return models.Job{}, err
 	}
 	return job, nil
+}
+
+func (s *PostgreStorage) GetJobsByInterval(ctx context.Context, interval uint64) ([]models.Job, error) {
+	var jobs []models.Job
+	query := fmt.Sprintf("SELECT * FROM %s WHERE interval=$1 and active", s.Table)
+	err := s.db.SelectContext(ctx, &jobs, query, interval)
+	if err != nil {
+		return nil, err
+	}
+	return jobs, nil
 }
 
 func (s *PostgreStorage) DeleteJob(ctx context.Context, id string) error {
