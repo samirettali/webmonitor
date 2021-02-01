@@ -13,6 +13,8 @@ import {
   Center,
   Stack,
   Heading,
+  Select,
+  Spinner,
 } from "@chakra-ui/react";
 import * as Yup from "yup";
 import { useHistory } from "react-router-dom";
@@ -21,7 +23,7 @@ import { Check } from "../check";
 import { QueryCache, useMutation, useQueryClient } from "react-query";
 import * as api from "../api/checks";
 import axios from "axios";
-import { QUERY_KEY } from "../constants";
+import { QUERY_KEY, INTERVALS } from "../constants";
 
 const CreateSchema = Yup.object().shape({
   name: Yup.string().min(3).max(30).required("Required"),
@@ -46,7 +48,7 @@ const CreateCheck = () => {
   const initialValues: Check = {
     name: "My check",
     url: "http://localhost:8000/test",
-    interval: 10,
+    interval: 0,
     email: "mail@example.com",
     active: true,
   };
@@ -91,16 +93,17 @@ const CreateCheck = () => {
           >
             {({ values, errors, touched, handleChange, isSubmitting }) => (
               <Form>
+              <Stack spacing={4}>
                 <Field name="name">
-                  {({ field, form }: any) => (
+                  {({ field, form }: any) => {console.log(field.errors, form.touched); console.log(errors, touched); return(
                     <FormControl
                       isInvalid={form.errors.name && form.touched.name}
                     >
                       <FormLabel htmlFor="url">Name</FormLabel>
                       <Input {...field} id="name" placeholder="My check" />
-                      <FormErrorMessage>{form.errors.url}</FormErrorMessage>
+                      <FormErrorMessage>{form.errors.name}</FormErrorMessage>
                     </FormControl>
-                  )}
+                  )}}
                 </Field>
                 <Field name="url">
                   {({ field, form }: any) => (
@@ -123,13 +126,9 @@ const CreateCheck = () => {
                       isInvalid={form.errors.interval && form.touched.interval}
                     >
                       <FormLabel htmlFor="interval">Interval</FormLabel>
-                      <NumberInput min={0}>
-                        <NumberInputField
-                          {...field}
-                          id="interval"
-                          placeholder="Interval in seconds"
-                        />
-                      </NumberInput>
+                      <Select placeholder="Select an interval">
+                        {INTERVALS.map(interval => <option>{interval}</option>)}
+                      </Select>
                       <FormErrorMessage>
                         {form.errors.interval}
                       </FormErrorMessage>
@@ -158,8 +157,9 @@ const CreateCheck = () => {
                   type="submit"
                   width="full"
                 >
-                  Create
+                Create
                 </Button>
+              </Stack>
               </Form>
             )}
           </Formik>
