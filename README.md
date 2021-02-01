@@ -1,6 +1,8 @@
 # Webmonitor
 
-A website monitor service written in Go
+A website monitoring service.
+
+The backend is written in Go and the frontend is a React App using Chakra UI.
 
 ## TODO
 * [ ] Implement multiple notification services
