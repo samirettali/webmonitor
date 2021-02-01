@@ -52,7 +52,6 @@ func (s *PostgreStorage) Init() error {
 }
 
 func (s *PostgreStorage) initTable() error {
-	s.Logger.Infof("creating table %s", s.Table)
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		id TEXT PRIMARY KEY NOT NULL,
 		name TEXT NOT NULL,
@@ -65,7 +64,8 @@ func (s *PostgreStorage) initTable() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
-	if _, err := s.db.ExecContext(ctx, query); err != nil {
+	_, err := s.db.ExecContext(ctx, query)
+	if err != nil {
 		return err
 	}
 	return nil
