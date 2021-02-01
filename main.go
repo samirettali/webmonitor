@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 	"github.com/samirettali/webmonitor/api"
 	"github.com/samirettali/webmonitor/middlewares"
@@ -85,14 +86,18 @@ func main() {
 	router.HandleFunc("/checks/{id}", handler.Delete).Methods(http.MethodDelete, http.MethodOptions)
 	router.HandleFunc("/checks/{id}", handler.Update).Methods(http.MethodPatch, http.MethodOptions)
 	router.Use(middlewares.Logger)
-	router.Use(mux.CORSMethodMiddleware(router))
+
+	h := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000"},
+		AllowedMethods: []string{"GET", "POST", "DELETE", "PATCH"},
+	}).Handler(router)
 
 	srv := &http.Server{
-		Addr:         "0.0.0.0:10000",
+		Addr:         "0.0.0.0:8000",
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 15,
-		Handler:      router,
+		Handler:      h,
 	}
 
 	go func() {
