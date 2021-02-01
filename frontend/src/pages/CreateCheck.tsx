@@ -7,8 +7,6 @@ import {
   FormLabel,
   FormErrorMessage,
   FormHelperText,
-  NumberInputField,
-  NumberInput,
   Box,
   Center,
   Stack,
@@ -18,6 +16,8 @@ import {
 } from "@chakra-ui/react";
 import * as Yup from "yup";
 import { useHistory } from "react-router-dom";
+import humanizeDuration from "humanize-duration";
+
 
 import { Check } from "../check";
 import { QueryCache, useMutation, useQueryClient } from "react-query";
@@ -91,11 +91,11 @@ const CreateCheck = () => {
               setSubmitting(false);
             }}
           >
-            {({ values, errors, touched, handleChange, isSubmitting }) => (
+            {({ errors, touched, isSubmitting }) => (
               <Form>
               <Stack spacing={4}>
                 <Field name="name">
-                  {({ field, form }: any) => {console.log(field.errors, form.touched); console.log(errors, touched); return(
+                  {({ field, form }: any) => (
                     <FormControl
                       isInvalid={form.errors.name && form.touched.name}
                     >
@@ -103,7 +103,7 @@ const CreateCheck = () => {
                       <Input {...field} id="name" placeholder="My check" />
                       <FormErrorMessage>{form.errors.name}</FormErrorMessage>
                     </FormControl>
-                  )}}
+                  )}
                 </Field>
                 <Field name="url">
                   {({ field, form }: any) => (
@@ -126,8 +126,8 @@ const CreateCheck = () => {
                       isInvalid={form.errors.interval && form.touched.interval}
                     >
                       <FormLabel htmlFor="interval">Interval</FormLabel>
-                      <Select placeholder="Select an interval">
-                        {INTERVALS.map(interval => <option>{interval}</option>)}
+                      <Select placeholder="Select an interval" {...field}>
+                        {INTERVALS.map(interval => <option>{humanizeDuration(interval * 1000)}</option>)}
                       </Select>
                       <FormErrorMessage>
                         {form.errors.interval}
