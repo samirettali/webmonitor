@@ -16,9 +16,8 @@ import (
 )
 
 type PostgreStorage struct {
-	URI   string
-	Table string
-	// Database string
+	URI    string
+	Table  string
 	Logger logger.Logger
 
 	sync.Mutex
