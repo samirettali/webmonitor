@@ -2,8 +2,8 @@ package notifier
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/samirettali/webmonitor/logger"
 	"github.com/samirettali/webmonitor/models"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
@@ -12,12 +12,14 @@ import (
 type EmailNotifier struct {
 	sender *mail.Email
 	client *sendgrid.Client
+	Logger logger.Logger
 }
 
-func NewEmailNotifier(sender string, apiKey string) *EmailNotifier {
+func NewEmailNotifier(sender string, apiKey string, logger logger.Logger) *EmailNotifier {
 	return &EmailNotifier{
 		sender: mail.NewEmail("WebMonitor", sender),
 		client: sendgrid.NewSendClient(apiKey),
+		Logger: logger,
 	}
 }
 
@@ -28,6 +30,6 @@ func (e *EmailNotifier) Notify(job *models.Job) error {
 	message := mail.NewSingleEmail(e.sender, subject, to, text, "")
 	// _, err := e.client.Send(message)
 	// return err
-	log.Printf("Sent notification to %s for %+v\n", job.Email, message.Sections)
+	e.Logger.Infof("Sent notification to %s for %+v\n", job.Email, message.Sections)
 	return nil
 }
