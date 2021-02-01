@@ -1,0 +1,18 @@
+version: '3.1'
+
+services:
+  db:
+    image: postgres
+    restart: always
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - 127.0.0.1:5432:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: webmonitor
+
+volumes:
+  db-data:
+    driver: local
