@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"sync"
 
 	"github.com/samirettali/webmonitor/models"
 )
@@ -17,10 +16,4 @@ type Storage interface {
 	DeleteCheck(ctx context.Context, id string) error
 	// TODO implement get method using a filter struct
 	GetChecksByInterval(ctx context.Context, interval uint64) ([]models.Check, error)
-}
-
-type MemoryStorage struct {
-	checks   []*models.Check
-	states map[string]string
-	sync.Mutex
 }
