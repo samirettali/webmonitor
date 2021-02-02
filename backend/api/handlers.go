@@ -6,22 +6,28 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/samirettali/webmonitor/logger"
 	"github.com/samirettali/webmonitor/models"
-	"github.com/samirettali/webmonitor/monitor"
+	"github.com/samirettali/webmonitor/storage"
+	"github.com/samirettali/webmonitor/utils"
 )
 
-type MonitorHandler struct {
-	Monitor *monitor.Monitor
+type ChecksHandler struct {
+	Storage storage.Storage
 	Logger  logger.Logger
 }
 
-func (h *MonitorHandler) Get(w http.ResponseWriter, r *http.Request) {
+type Response struct {
+	Error string `json:"error"`
+}
+
+func (h *ChecksHandler) Get(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	checks, err := h.Monitor.GetChecks(r.Context())
+	checks, err := h.Storage.GetJobs(r.Context())
 	if err != nil {
 		h.Logger.Errorf("get: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -32,7 +38,7 @@ func (h *MonitorHandler) Get(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&checks)
 }
 
-func (h *MonitorHandler) Post(w http.ResponseWriter, r *http.Request) {
+func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -54,7 +60,21 @@ func (h *MonitorHandler) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	check, err := h.Monitor.Add(r.Context(), &job)
+	initialState, err := utils.Request(job.URL)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		resp := Response{
+			Error: "The selected URL cannot be reached",
+		}
+		json.NewEncoder(w).Encode(&resp)
+		return
+	}
+
+	job.State = initialState
+	job.ID = uuid.New().String()
+
+	err = h.Storage.SaveJob(r.Context(), &job)
+	// job, err := h.Storage.SaveJob(r.Context(), &job)
 	if err != nil {
 		h.Logger.Errorf("add: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -62,16 +82,16 @@ func (h *MonitorHandler) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(&check)
+	json.NewEncoder(w).Encode(&job)
 }
 
-func (h *MonitorHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *ChecksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	params := mux.Vars(r)
 	id := params["id"]
-	err := h.Monitor.Delete(r.Context(), id)
+	err := h.Storage.DeleteJob(r.Context(), id)
 
 	if err != nil {
 		h.Logger.Errorf("delete: %v", err)
@@ -81,7 +101,7 @@ func (h *MonitorHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *MonitorHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *ChecksHandler) Update(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -96,7 +116,7 @@ func (h *MonitorHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.Monitor.Update(r.Context(), id, &upd)
+	job, err := h.Storage.UpdateJob(r.Context(), id, &upd)
 	if err != nil {
 		h.Logger.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -78,7 +78,7 @@ func main() {
 
 	defer monitor.Stop()
 
-	handler := api.MonitorHandler{Monitor: monitor, Logger: log}
+	handler := api.ChecksHandler{Storage: storage, Logger: log}
 
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/checks", handler.Get).Methods(http.MethodGet, http.MethodOptions)
