@@ -22,8 +22,6 @@ import { QUERY_KEY } from "../constants";
 import { Check } from "../check";
 
 const Dashboard = () => {
-  // const [checks, setChecks] = useState<Check[]>([]);
-  const [error, setError] = useState<any>(undefined);
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isSuccess, isLoading, isError, data: checks } = useQuery(
@@ -31,9 +29,6 @@ const Dashboard = () => {
     api.getChecks
   );
 
-  useEffect(() => {
-    console.log(checks);
-  }, [checks]);
 
   const deleteMutation = useMutation(api.deleteCheck, {
     onMutate: async (id: string) => {
@@ -46,8 +41,6 @@ const Dashboard = () => {
       return { previousChecks };
     },
     onError: (err, id, context) => {
-      // TODO check ?
-      // setError(err)
       const newValue = context ? context.previousChecks : [];
       queryClient.setQueryData(QUERY_KEY, newValue);
     },
@@ -58,21 +51,7 @@ const Dashboard = () => {
 
   const onDelete = (id: string) => {
     deleteMutation.mutate(id);
-    api.deleteCheck(id);
   };
-
-  useEffect(() => {
-    if (error) {
-      toast({
-        position: "bottom-right",
-        title: "An error occurred",
-        // description: error,
-        status: "error",
-        duration: 10000,
-        isClosable: true,
-      });
-    }
-  }, [error]);
 
   return (
     <>

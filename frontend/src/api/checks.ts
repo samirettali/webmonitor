@@ -8,6 +8,7 @@ const instance = axios.create({
   timeout: 1000,
 });
 
+// export const getChecks = async (): Promise<Check> => {
 export const getChecks = async () => {
   const { data } = await instance.get("");
   return data;

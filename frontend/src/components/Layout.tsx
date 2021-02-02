@@ -7,7 +7,6 @@ const Layout: React.FC = ({ children }) => {
     <Flex
       direction="column"
       align="center"
-      // maxW={{ xl: "1200px" }}
       minHeight="100vh"
       margin="0 auto"
       background="gray.100"

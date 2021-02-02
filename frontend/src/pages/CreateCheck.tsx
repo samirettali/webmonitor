@@ -12,6 +12,7 @@ import {
   Stack,
   Heading,
   Select,
+  useToast,
   Spinner,
 } from "@chakra-ui/react";
 import * as Yup from "yup";
@@ -36,43 +37,62 @@ const CreateSchema = Yup.object().shape({
   email: Yup.string().email("Invalid Email").required("Required"),
 });
 
+function isError(error: unknown): error is Error {
+  return error instanceof Error;
+}
+
 const CreateCheck = () => {
+  const toast = useToast();
   const history = useHistory();
   const queryClient = useQueryClient();
   const queryCache = new QueryCache({
     onError: (error) => {
-      console.log(error);
+      console.log("QueryCache error: ", error);
     },
   });
 
   const initialValues: Check = {
     name: "My check",
-    url: "http://localhost:8000/test",
+    url: "http://localhost:8080/test",
     interval: 0,
     email: "mail@example.com",
     active: true,
   };
 
-  const { mutate } = useMutation(
-    (check: Check) => {
-      return axios.post("http://localhost:8000/checks", check);
-    },
-    {
-      //   onMutate: (newCheck) => {
-      //     queryCache.cancelQueries(QUERY_KEY);
-      //     const current = queryCache.getQueryData(QUERY_KEY);
-      //     queryCache.setQueryData(QUERY_KEY, (prev: Check[]) => {
-      //       return [...prev, { ...newCheck, id: new Date().toISOString() }];
-      //     });
-      //     return current;
-      //   },
-      //   onError: (error, newData, rollback) => rollback(),
+
+  const { mutate } = useMutation(api.createCheck, {
+      onMutate: async (newCheck: Check) => {
+        await queryClient.cancelQueries(QUERY_KEY);
+        const previousChecks = queryClient.getQueryData<Check[]>(QUERY_KEY);
+        // Temporary id
+        newCheck.id = Date.now().toString();
+        if (previousChecks) {
+          queryClient.setQueryData<Check[]>(QUERY_KEY, [
+            ...previousChecks,
+            newCheck
+          ]);
+        } else {
+          queryClient.setQueryData<Check[]>(QUERY_KEY, [
+            newCheck
+          ]);
+        }
+        return { previousChecks };
+      },
+      onError: (err, variables, context) => {
+        toast({
+          position: "bottom-right",
+          title: "An error occurred",
+          description: "There was an error",
+          status: "error",
+          duration: 10000,
+          isClosable: true,
+        }); 
+        if (context?.previousChecks) {
+          queryClient.setQueryData<Check[]>(QUERY_KEY, context.previousChecks)
+        }
+      },
       onSuccess: (newCheck) => {
-        // queryCache.setQueryData(QUERY_KEY, (current: Check[]) => [
-        //   ...current,
-        //   newCheck,
-        // ]);
-        // queryClient.invalidateQueries(QUERY_KEY);
+        queryClient.invalidateQueries(QUERY_KEY);
         history.push("/dashboard");
       },
     }
@@ -87,7 +107,12 @@ const CreateCheck = () => {
             initialValues={initialValues}
             validationSchema={CreateSchema}
             onSubmit={(values: Check, { setSubmitting }) => {
-              mutate(values);
+              const check: Check = {
+                ...values,
+                interval: typeof values.interval === "string" ? parseInt(values.interval, 10) : values.interval
+              }
+              // values.interval = parseInt(values.interval, 10);
+              mutate(check);
               setSubmitting(false);
             }}
           >
@@ -127,7 +152,9 @@ const CreateCheck = () => {
                     >
                       <FormLabel htmlFor="interval">Interval</FormLabel>
                       <Select placeholder="Select an interval" {...field}>
-                        {INTERVALS.map(interval => <option>{humanizeDuration(interval * 1000)}</option>)}
+                        {INTERVALS.map(interval => (
+                          <option value={interval}>{humanizeDuration(interval * 1000)}</option>)
+                        )}
                       </Select>
                       <FormErrorMessage>
                         {form.errors.interval}
