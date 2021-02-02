@@ -9,5 +9,6 @@ The backend is written in Go and the frontend is a React App using Chakra UI.
 * [ ] Make notification service per check
 * [ ] Add a token to delete a check
 * [x] Add persistent storage
-* [ ] Make API handler use storage instead of monitor
-* [ ] Add validation to API
+* [x] Make API handler use storage instead of monitor
+* [x] Add validation to API
+* [ ] Use sensible defaults instead of erroring out
