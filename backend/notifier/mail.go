@@ -23,13 +23,13 @@ func NewEmailNotifier(sender string, apiKey string, logger logger.Logger) *Email
 	}
 }
 
-func (e *EmailNotifier) Notify(job *models.Job) error {
-	text := buildMessage(job)
-	subject := fmt.Sprintf("WebMonitor alert: %s", job.URL)
-	to := mail.NewEmail(job.Email, job.Email)
+func (e *EmailNotifier) Notify(check *models.Check) error {
+	text := buildMessage(check)
+	subject := fmt.Sprintf("WebMonitor alert: %s", check.URL)
+	to := mail.NewEmail(check.Email, check.Email)
 	message := mail.NewSingleEmail(e.sender, subject, to, text, "")
 	// _, err := e.client.Send(message)
 	// return err
-	e.Logger.Infof("Sent notification to %s for %+v\n", job.Email, message.Sections)
+	e.Logger.Infof("Sent notification to %s for %+v\n", check.Email, message.Sections)
 	return nil
 }

@@ -27,7 +27,7 @@ func (h *ChecksHandler) Get(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	checks, err := h.Storage.GetJobs(r.Context())
+	checks, err := h.Storage.GetChecks(r.Context())
 	if err != nil {
 		h.Logger.Errorf("get: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -42,9 +42,9 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	var job models.Job
+	var check models.Check
 	dec := json.NewDecoder(r.Body)
-	err := dec.Decode(&job)
+	err := dec.Decode(&check)
 	if err != nil {
 		h.Logger.Error("decode: ", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -52,7 +52,7 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := validator.New()
-	err = v.Struct(job)
+	err = v.Struct(check)
 
 	if err != nil {
 		h.Logger.Error("validate: ", err)
@@ -60,7 +60,7 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initialState, err := utils.Request(job.URL)
+	initialState, err := utils.Request(check.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		resp := Response{
@@ -70,11 +70,10 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job.State = initialState
-	job.ID = uuid.New().String()
+	check.State = initialState
+	check.ID = uuid.New().String()
 
-	err = h.Storage.SaveJob(r.Context(), &job)
-	// job, err := h.Storage.SaveJob(r.Context(), &job)
+	err = h.Storage.SaveCheck(r.Context(), &check)
 	if err != nil {
 		h.Logger.Errorf("add: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -82,7 +81,7 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(&job)
+	json.NewEncoder(w).Encode(&check)
 }
 
 func (h *ChecksHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +90,7 @@ func (h *ChecksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	params := mux.Vars(r)
 	id := params["id"]
-	err := h.Storage.DeleteJob(r.Context(), id)
+	err := h.Storage.DeleteCheck(r.Context(), id)
 
 	if err != nil {
 		h.Logger.Errorf("delete: %v", err)
@@ -105,7 +104,7 @@ func (h *ChecksHandler) Update(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	var upd models.JobUpdate
+	var upd models.CheckUpdate
 	params := mux.Vars(r)
 	id := params["id"]
 
@@ -116,12 +115,12 @@ func (h *ChecksHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.Storage.UpdateJob(r.Context(), id, &upd)
+	check, err := h.Storage.UpdateCheck(r.Context(), id, &upd)
 	if err != nil {
 		h.Logger.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(job)
+	json.NewEncoder(w).Encode(check)
 }

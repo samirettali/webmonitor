@@ -1,6 +1,6 @@
 package models
 
-type Job struct {
+type Check struct {
 	ID       string `json:"id"`
 	Name     string `json:"name" validate:"required,min=3,max=30"`
 	URL      string `json:"url" validate:"required,url"`
@@ -10,7 +10,7 @@ type Job struct {
 	Active   bool   `json:"active" validate:"required"`
 }
 
-type JobUpdate struct {
+type CheckUpdate struct {
 	URL      *string `json:"url" validate:"url"`
 	Name     *string `json:"name" validate:"min=3,max=30"`
 	Interval *uint64 `json:"interval" validate:"min=1"`

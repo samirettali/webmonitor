@@ -87,9 +87,9 @@ func (m *Monitor) runChecks(interval uint64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
 
-	checks, err := m.storage.GetJobsByInterval(ctx, interval)
+	checks, err := m.storage.GetChecksByInterval(ctx, interval)
 	if err != nil {
-		werr := errors.Wrap(err, "runChecks can't get jobs")
+		werr := errors.Wrap(err, "runChecks can't get checks")
 		return werr
 		// return []error{werr}
 	}
@@ -107,7 +107,7 @@ func (m *Monitor) runChecks(interval uint64) error {
 
 	for _, check := range checks {
 		m.sem <- struct{}{}
-		go func(check *models.Job) {
+		go func(check *models.Check) {
 			m.runCheck(check)
 			err := m.runCheck(check)
 			if err != nil {
@@ -134,7 +134,7 @@ func (m *Monitor) runChecks(interval uint64) error {
 	return nil
 }
 
-func (m *Monitor) runCheck(check *models.Job) error {
+func (m *Monitor) runCheck(check *models.Check) error {
 	body, err := utils.Request(check.URL)
 	if err != nil {
 		return err
@@ -150,13 +150,13 @@ func (m *Monitor) runCheck(check *models.Job) error {
 		return errors.Wrap(err, "can't sent notification")
 	}
 
-	upd := models.JobUpdate{State: &body}
+	upd := models.CheckUpdate{State: &body}
 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
 
-	_, err = m.storage.UpdateJob(ctx, check.ID, &upd)
+	_, err = m.storage.UpdateCheck(ctx, check.ID, &upd)
 	if err != nil {
-		return errors.Wrap(err, "can't update job")
+		return errors.Wrap(err, "can't update check")
 	}
 
 	return nil

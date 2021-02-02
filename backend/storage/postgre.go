@@ -72,80 +72,80 @@ func (s *PostgreStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgreStorage) SaveJob(ctx context.Context, job *models.Job) error {
+func (s *PostgreStorage) SaveCheck(ctx context.Context, check *models.Check) error {
 	query := fmt.Sprintf("INSERT INTO %s (id, name, url, interval, state, email, active) VALUES(:id, :name, :url, :interval, :state, :email, :active)", s.Table)
-	_, err := s.db.NamedExecContext(ctx, query, job)
+	_, err := s.db.NamedExecContext(ctx, query, check)
 	return err
 }
 
-func (s *PostgreStorage) GetJobs(ctx context.Context) ([]models.Job, error) {
-	var jobs []models.Job
+func (s *PostgreStorage) GetChecks(ctx context.Context) ([]models.Check, error) {
+	var checks []models.Check
 	query := fmt.Sprintf("SELECT * FROM %s", s.Table)
-	err := s.db.Select(&jobs, query)
+	err := s.db.Select(&checks, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return jobs, nil
+	return checks, nil
 }
 
 // TODO make this more efficient, use a query builder maybe
-func (s *PostgreStorage) UpdateJob(ctx context.Context, id string, upd *models.JobUpdate) (models.Job, error) {
-	var job models.Job
+func (s *PostgreStorage) UpdateCheck(ctx context.Context, id string, upd *models.CheckUpdate) (models.Check, error) {
+	var checks models.Check
 	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
-	err := s.db.GetContext(ctx, &job, query, id)
+	err := s.db.GetContext(ctx, &checks, query, id)
 	if err != nil {
-		return models.Job{}, err
+		return models.Check{}, err
 	}
 
 	if upd.Email != nil {
-		job.Email = *upd.Email
+		checks.Email = *upd.Email
 	}
 
 	if upd.Interval != nil {
-		job.Interval = *upd.Interval
+		checks.Interval = *upd.Interval
 	}
 
 	if upd.URL != nil {
-		job.URL = *upd.URL
+		checks.URL = *upd.URL
 	}
 
 	if upd.State != nil {
-		job.State = *upd.State
+		checks.State = *upd.State
 	}
 
-	s.Logger.Infof("Updating job %s", job.ID)
+	s.Logger.Infof("Updating check %s", checks.ID)
 
 	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, state = :state WHERE id = :id", s.Table)
-	_, err = s.db.NamedExecContext(ctx, statement, &job)
+	_, err = s.db.NamedExecContext(ctx, statement, &checks)
 	if err != nil {
-		return models.Job{}, err
+		return models.Check{}, err
 	}
 
-	return job, nil
+	return checks, nil
 }
 
-func (s *PostgreStorage) GetJob(ctx context.Context, id string) (models.Job, error) {
-	var job models.Job
+func (s *PostgreStorage) GetCheck(ctx context.Context, id string) (models.Check, error) {
+	var check models.Check
 	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
-	err := s.db.GetContext(ctx, &job, query, id)
+	err := s.db.GetContext(ctx, &check, query, id)
 	if err != nil {
-		return models.Job{}, err
+		return models.Check{}, err
 	}
-	return job, nil
+	return check, nil
 }
 
-func (s *PostgreStorage) GetJobsByInterval(ctx context.Context, interval uint64) ([]models.Job, error) {
-	var jobs []models.Job
+func (s *PostgreStorage) GetChecksByInterval(ctx context.Context, interval uint64) ([]models.Check, error) {
+	var checks []models.Check
 	query := fmt.Sprintf("SELECT * FROM %s WHERE interval=$1 and active", s.Table)
-	err := s.db.SelectContext(ctx, &jobs, query, interval)
+	err := s.db.SelectContext(ctx, &checks, query, interval)
 	if err != nil {
 		return nil, err
 	}
-	return jobs, nil
+	return checks, nil
 }
 
-func (s *PostgreStorage) DeleteJob(ctx context.Context, id string) error {
+func (s *PostgreStorage) DeleteCheck(ctx context.Context, id string) error {
 	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.Table)
 	_, err := s.db.Exec(query, id)
 	if err != nil {

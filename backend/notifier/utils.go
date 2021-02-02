@@ -6,9 +6,9 @@ import (
 	"github.com/samirettali/webmonitor/models"
 )
 
-func buildMessage(job *models.Job) string {
+func buildMessage(check *models.Check) string {
 	b := strings.Builder{}
 	b.WriteString("Detected difference on ")
-	b.WriteString(job.URL)
+	b.WriteString(check.URL)
 	return b.String()
 }

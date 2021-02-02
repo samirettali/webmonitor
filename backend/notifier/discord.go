@@ -10,7 +10,7 @@ import (
 )
 
 type Notifier interface {
-	Notify(job *models.Job) error
+	Notify(check *models.Check) error
 }
 
 type DiscordNotifier struct {
