@@ -19,8 +19,7 @@ import * as Yup from "yup";
 import { useHistory } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
 
-
-import { Check } from "../check";
+import { Check } from "../model";
 import { QueryCache, useMutation, useQueryClient } from "react-query";
 import * as api from "../api/checks";
 import axios from "axios";
@@ -59,44 +58,40 @@ const CreateCheck = () => {
     active: true,
   };
 
-
   const { mutate } = useMutation(api.createCheck, {
-      onMutate: async (newCheck: Check) => {
-        await queryClient.cancelQueries(QUERY_KEY);
-        const previousChecks = queryClient.getQueryData<Check[]>(QUERY_KEY);
-        // Temporary id
-        newCheck.id = Date.now().toString();
-        if (previousChecks) {
-          queryClient.setQueryData<Check[]>(QUERY_KEY, [
-            ...previousChecks,
-            newCheck
-          ]);
-        } else {
-          queryClient.setQueryData<Check[]>(QUERY_KEY, [
-            newCheck
-          ]);
-        }
-        return { previousChecks };
-      },
-      onError: (err, variables, context) => {
-        toast({
-          position: "bottom-right",
-          title: "An error occurred",
-          description: "There was an error",
-          status: "error",
-          duration: 10000,
-          isClosable: true,
-        }); 
-        if (context?.previousChecks) {
-          queryClient.setQueryData<Check[]>(QUERY_KEY, context.previousChecks)
-        }
-      },
-      onSuccess: (newCheck) => {
-        queryClient.invalidateQueries(QUERY_KEY);
-        history.push("/dashboard");
-      },
-    }
-  );
+    onMutate: async (newCheck: Check) => {
+      await queryClient.cancelQueries(QUERY_KEY);
+      const previousChecks = queryClient.getQueryData<Check[]>(QUERY_KEY);
+      // Temporary id
+      newCheck.id = Date.now().toString();
+      if (previousChecks) {
+        queryClient.setQueryData<Check[]>(QUERY_KEY, [
+          ...previousChecks,
+          newCheck,
+        ]);
+      } else {
+        queryClient.setQueryData<Check[]>(QUERY_KEY, [newCheck]);
+      }
+      return { previousChecks };
+    },
+    onError: (err, variables, context) => {
+      toast({
+        position: "bottom-right",
+        title: "An error occurred",
+        description: "There was an error",
+        status: "error",
+        duration: 10000,
+        isClosable: true,
+      });
+      if (context?.previousChecks) {
+        queryClient.setQueryData<Check[]>(QUERY_KEY, context.previousChecks);
+      }
+    },
+    onSuccess: (newCheck) => {
+      queryClient.invalidateQueries(QUERY_KEY);
+      history.push("/dashboard");
+    },
+  });
 
   return (
     <Stack spacing="1rem" bg="white" shadow="xl" p={8} rounded="xl">
@@ -109,86 +104,100 @@ const CreateCheck = () => {
             onSubmit={(values: Check, { setSubmitting }) => {
               const check: Check = {
                 ...values,
-                interval: typeof values.interval === "string" ? parseInt(values.interval, 10) : values.interval
-              }
+                interval:
+                  typeof values.interval === "string"
+                    ? parseInt(values.interval, 10)
+                    : values.interval,
+              };
               // values.interval = parseInt(values.interval, 10);
               mutate(check);
               setSubmitting(false);
             }}
           >
-            {({ errors, touched, isSubmitting }) => (
-              <Form>
-              <Stack spacing={4}>
-                <Field name="name">
-                  {({ field, form }: any) => (
-                    <FormControl
-                      isInvalid={form.errors.name && form.touched.name}
+            {({ isSubmitting }) => {
+              console.log("dsdsaa", isSubmitting);
+              return (
+                <Form>
+                  <Stack spacing={4}>
+                    <Field name="name">
+                      {({ field, form }: any) => (
+                        <FormControl
+                          isInvalid={form.errors.name && form.touched.name}
+                        >
+                          <FormLabel htmlFor="url">Name</FormLabel>
+                          <Input {...field} id="name" placeholder="My check" />
+                          <FormErrorMessage>
+                            {form.errors.name}
+                          </FormErrorMessage>
+                        </FormControl>
+                      )}
+                    </Field>
+                    <Field name="url">
+                      {({ field, form }: any) => (
+                        <FormControl
+                          isInvalid={form.errors.url && form.touched.url}
+                        >
+                          <FormLabel htmlFor="url">URL</FormLabel>
+                          <Input
+                            {...field}
+                            id="url"
+                            placeholder="https://example.com"
+                          />
+                          <FormErrorMessage>{form.errors.url}</FormErrorMessage>
+                        </FormControl>
+                      )}
+                    </Field>
+                    <Field name="interval">
+                      {({ field, form }: any) => (
+                        <FormControl
+                          isInvalid={
+                            form.errors.interval && form.touched.interval
+                          }
+                        >
+                          <FormLabel htmlFor="interval">Interval</FormLabel>
+                          <Select placeholder="Select an interval" {...field}>
+                            {INTERVALS.map((interval) => (
+                              <option value={interval}>
+                                {humanizeDuration(interval * 1000)}
+                              </option>
+                            ))}
+                          </Select>
+                          <FormErrorMessage>
+                            {form.errors.interval}
+                          </FormErrorMessage>
+                        </FormControl>
+                      )}
+                    </Field>
+                    <Field name="email">
+                      {({ field, form }: any) => (
+                        <FormControl
+                          isInvalid={form.errors.email && form.touched.email}
+                        >
+                          <FormLabel htmlFor="email">Email</FormLabel>
+                          <Input
+                            {...field}
+                            id="email"
+                            placeholder="me@example.com"
+                          />
+                          <FormErrorMessage>
+                            {form.errors.email}
+                          </FormErrorMessage>
+                        </FormControl>
+                      )}
+                    </Field>
+                    <Button
+                      mt={4}
+                      colorScheme="teal"
+                      isLoading={isSubmitting}
+                      type="submit"
+                      width="full"
                     >
-                      <FormLabel htmlFor="url">Name</FormLabel>
-                      <Input {...field} id="name" placeholder="My check" />
-                      <FormErrorMessage>{form.errors.name}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-                <Field name="url">
-                  {({ field, form }: any) => (
-                    <FormControl
-                      isInvalid={form.errors.url && form.touched.url}
-                    >
-                      <FormLabel htmlFor="url">URL</FormLabel>
-                      <Input
-                        {...field}
-                        id="url"
-                        placeholder="https://example.com"
-                      />
-                      <FormErrorMessage>{form.errors.url}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-                <Field name="interval">
-                  {({ field, form }: any) => (
-                    <FormControl
-                      isInvalid={form.errors.interval && form.touched.interval}
-                    >
-                      <FormLabel htmlFor="interval">Interval</FormLabel>
-                      <Select placeholder="Select an interval" {...field}>
-                        {INTERVALS.map(interval => (
-                          <option value={interval}>{humanizeDuration(interval * 1000)}</option>)
-                        )}
-                      </Select>
-                      <FormErrorMessage>
-                        {form.errors.interval}
-                      </FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-                <Field name="email">
-                  {({ field, form }: any) => (
-                    <FormControl
-                      isInvalid={form.errors.email && form.touched.email}
-                    >
-                      <FormLabel htmlFor="email">Email</FormLabel>
-                      <Input
-                        {...field}
-                        id="email"
-                        placeholder="me@example.com"
-                      />
-                      <FormErrorMessage>{form.errors.email}</FormErrorMessage>
-                    </FormControl>
-                  )}
-                </Field>
-                <Button
-                  mt={4}
-                  colorScheme="teal"
-                  isLoading={isSubmitting}
-                  type="submit"
-                  width="full"
-                >
-                Create
-                </Button>
-              </Stack>
-              </Form>
-            )}
+                      Create
+                    </Button>
+                  </Stack>
+                </Form>
+              );
+            }}
           </Formik>
         </Box>
       </Center>

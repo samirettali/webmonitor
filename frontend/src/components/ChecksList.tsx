@@ -12,7 +12,8 @@ import {
   Flex,
 } from "@chakra-ui/react";
 import { EditIcon, DeleteIcon } from "@chakra-ui/icons";
-import { Check } from "../check";
+import { Check } from "../model";
+import { useHistory, Link as RouterLink } from "react-router-dom";
 
 interface ChecksListProps {
   checks: Check[];
@@ -20,6 +21,9 @@ interface ChecksListProps {
 }
 
 const ChecksTable = ({ checks, onDelete }: ChecksListProps) => {
+  const history = useHistory();
+  console.log("CHECKS", checks);
+
   return (
     <>
       <Table variant="simple">
@@ -36,18 +40,28 @@ const ChecksTable = ({ checks, onDelete }: ChecksListProps) => {
           </Tr>
         </Thead>
         <Tbody>
-          {checks.map(({ name, id, url, interval, active, email }: Check) => (
-            <Tr key={id}>
-              <Td>{name}</Td>
+          {checks.map((check: Check) => (
+            <Tr key={check.id}>
               <Td>
-                <Link href={url} color="blue.500" isExternal>
-                  {url}
+                <RouterLink
+                  to={{ pathname: `/check/${check.id}`, state: check }}
+                >
+                  {/* onClick={() => {
+                    history.push("/check", check);
+                  }} */}
+                  {/* > */}
+                  {check.name}
+                </RouterLink>
+              </Td>
+              <Td>
+                <Link href={check.url} color="blue.500" isExternal>
+                  {check.url}
                 </Link>
               </Td>
-              <Td isNumeric>{interval}</Td>
-              <Td>{email}</Td>
+              <Td isNumeric>{check.interval}</Td>
+              <Td>{check.email}</Td>
               <Td>
-                <Switch isChecked={active} />
+                <Switch isChecked={check.active} />
               </Td>
               <Td>
                 <Flex justify="space-evenly">
@@ -57,7 +71,7 @@ const ChecksTable = ({ checks, onDelete }: ChecksListProps) => {
                       color: "teal.500",
                       cursor: "pointer",
                     }}
-                    onClick={() => onDelete(id!)}
+                    onClick={() => onDelete(check.id!)}
                   />
                   <DeleteIcon
                     boxSize={6}
@@ -65,7 +79,7 @@ const ChecksTable = ({ checks, onDelete }: ChecksListProps) => {
                       color: "teal.500",
                       cursor: "pointer",
                     }}
-                    onClick={() => onDelete(id!)}
+                    onClick={() => onDelete(check.id!)}
                   />
                 </Flex>
               </Td>

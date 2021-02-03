@@ -33,5 +33,9 @@ export const isCheck = (obj: unknown): obj is Check => {
 };
 
 export const isStatus = (obj: unknown): obj is Status => {
-  return obj !== null && typeof (obj as Status).content === "string";
+  return (
+    obj !== null &&
+    typeof (obj as Status).content === "string" &&
+    typeof (obj as Status).date === "object"
+  );
 };

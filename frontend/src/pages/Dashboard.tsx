@@ -19,7 +19,7 @@ import { Link as RouterLink } from "react-router-dom";
 import * as api from "../api/checks";
 import ChecksTable from "../components/ChecksList";
 import { QUERY_KEY } from "../constants";
-import { Check } from "../check";
+import { Check } from "../model";
 
 const Dashboard = () => {
   const toast = useToast();
@@ -29,20 +29,27 @@ const Dashboard = () => {
     api.getChecks
   );
 
-
   const deleteMutation = useMutation(api.deleteCheck, {
     onMutate: async (id: string) => {
       await queryClient.cancelQueries(QUERY_KEY);
       const previousChecks = queryClient.getQueryData(QUERY_KEY);
       queryClient.setQueryData(
         QUERY_KEY,
-        checks.filter((check: Check) => check.id != id)
+        checks!.filter((check: Check) => check.id != id)
       );
       return { previousChecks };
     },
     onError: (err, id, context) => {
       const newValue = context ? context.previousChecks : [];
       queryClient.setQueryData(QUERY_KEY, newValue);
+      toast({
+        position: "bottom-right",
+        title: "Error",
+        description: `There was an error deleting check ${JSON.stringify(err)}`,
+        status: "error",
+        duration: 10000,
+        isClosable: true,
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries(QUERY_KEY);
