@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -14,16 +15,34 @@ import (
 	"github.com/samirettali/webmonitor/utils"
 )
 
-type ChecksHandler struct {
+type StorageHandler struct {
 	Storage storage.Storage
 	Logger  logger.Logger
 }
 
 type Response struct {
 	Error string `json:"error"`
+
 }
 
-func (h *ChecksHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (h *StorageHandler) GetCheck(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	params := mux.Vars(r)
+	id := params["id"]
+	check, err := h.Storage.GetCheck(r.Context(), id)
+	if err != nil {
+		h.Logger.Errorf("get: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(&check)
+}
+
+func (h *StorageHandler) GetChecks(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -38,7 +57,7 @@ func (h *ChecksHandler) Get(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&checks)
 }
 
-func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
+func (h *StorageHandler) CreateCheck(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -60,7 +79,7 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initialState, err := utils.Request(check.URL)
+	body, err := utils.Request(check.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		resp := Response{
@@ -70,12 +89,25 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	check.State = initialState
 	check.ID = uuid.New().String()
 
-	err = h.Storage.SaveCheck(r.Context(), &check)
+	status := models.Status{
+		ID:      uuid.New().String(),
+		Content: body,
+		CheckID: check.ID,
+		Date:    time.Now(),
+	}
+
+	err = h.Storage.CreateCheck(r.Context(), &check)
 	if err != nil {
-		h.Logger.Errorf("add: %v", err)
+		h.Logger.Errorf("save check: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = h.Storage.UpdateStatus(r.Context(), check.ID, &status)
+	if err != nil {
+		h.Logger.Errorf("add status: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -84,7 +116,7 @@ func (h *ChecksHandler) Post(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&check)
 }
 
-func (h *ChecksHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *StorageHandler) DeleteCheck(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -95,12 +127,13 @@ func (h *ChecksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.Logger.Errorf("delete: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ChecksHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *StorageHandler) UpdateCheck(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -123,4 +156,22 @@ func (h *ChecksHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(check)
+}
+
+func (h *StorageHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	params := mux.Vars(r)
+	id := params["id"]
+
+	statuses, err := h.Storage.GetHistory(r.Context(), id)
+	if err != nil {
+		h.Logger.Errorf("get history: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(&statuses)
 }

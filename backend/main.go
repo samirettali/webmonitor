@@ -48,10 +48,16 @@ func main() {
 		log.Fatal("You must set the POSTGRE_URI environment variable.")
 	}
 
-	postgreTable, ok := os.LookupEnv("POSTGRE_TABLE")
+	checksTable, ok := os.LookupEnv("POSTGRE_CHECKS_TABLE")
 	if !ok {
-		log.Fatal("You must set the POSTGRE_TABLE environment variable.")
+		log.Fatal("You must set the POSTGRE_CHECKS_TABLE environment variable.")
 	}
+
+	statusesTable, ok := os.LookupEnv("POSTGRE_STATUSES_TABLE")
+	if !ok {
+		log.Fatal("You must set the POSTGRE_STATUES_TABLE environment variable.")
+	}
+
 
 	sendgridApiKey, ok := os.LookupEnv("SENDGRID_API_KEY")
 	if !ok {
@@ -60,7 +66,8 @@ func main() {
 
 	storage := &storage.PostgreStorage{
 		URI:    postgreURI,
-		Table:  postgreTable,
+		ChecksTable:  checksTable,
+		StatusesTable:  statusesTable,
 		Logger: log,
 	}
 
@@ -78,13 +85,15 @@ func main() {
 
 	defer monitor.Stop()
 
-	handler := api.ChecksHandler{Storage: storage, Logger: log}
+	handler := api.StorageHandler{Storage: storage, Logger: log}
 
 	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/checks", handler.Get).Methods(http.MethodGet, http.MethodOptions)
-	router.HandleFunc("/checks", handler.Post).Methods(http.MethodPost, http.MethodOptions)
-	router.HandleFunc("/checks/{id}", handler.Delete).Methods(http.MethodDelete, http.MethodOptions)
-	router.HandleFunc("/checks/{id}", handler.Update).Methods(http.MethodPatch, http.MethodOptions)
+	router.HandleFunc("/checks", handler.GetChecks).Methods(http.MethodGet, http.MethodOptions)
+	router.HandleFunc("/checks", handler.CreateCheck).Methods(http.MethodPost, http.MethodOptions)
+	router.HandleFunc("/checks/{id}", handler.GetCheck).Methods(http.MethodGet, http.MethodOptions)
+	router.HandleFunc("/checks/{id}", handler.DeleteCheck).Methods(http.MethodDelete, http.MethodOptions)
+	router.HandleFunc("/checks/{id}", handler.UpdateCheck).Methods(http.MethodPatch, http.MethodOptions)
+	router.HandleFunc("/checks/{id}/history", handler.GetHistory).Methods(http.MethodGet, http.MethodOptions)
 	router.Use(middlewares.Logger)
 
 	h := cors.New(cors.Options{

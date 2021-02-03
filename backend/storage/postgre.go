@@ -15,9 +15,10 @@ import (
 )
 
 type PostgreStorage struct {
-	URI    string
-	Table  string
-	Logger logger.Logger
+	URI           string
+	ChecksTable   string
+	StatusesTable string
+	Logger        logger.Logger
 
 	sync.Mutex
 	db *sqlx.DB
@@ -40,7 +41,7 @@ func (s *PostgreStorage) Init() error {
 		return errors.Wrap(err, "cannot ping db")
 	}
 
-	err = s.initTable()
+	err = s.initTables()
 	if err != nil {
 		return err
 	}
@@ -48,16 +49,23 @@ func (s *PostgreStorage) Init() error {
 	return nil
 }
 
-func (s *PostgreStorage) initTable() error {
+func (s *PostgreStorage) initTables() error {
 	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		id TEXT PRIMARY KEY NOT NULL,
 		name TEXT NOT NULL,
 		url TEXT NOT NULL,
 		interval BIGINT NOT NULL,
-		state TEXT NOT NULL,
 		email TEXT NOT NULL,
 		active BOOLEAN NOT NULL
-	);`, s.Table)
+	);
+	
+	CREATE TABLE IF NOT EXISTS %s (
+		id TEXT PRIMARY KEY NOT NULL,
+		check_id TEXT NOT NULL REFERENCES %s(id),
+		content TEXT NOT NULL,
+		date TIMESTAMP NOT NULL
+	);
+	`, s.ChecksTable, s.StatusesTable, s.ChecksTable)
 
 	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
 	defer cancel()
@@ -72,15 +80,15 @@ func (s *PostgreStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgreStorage) SaveCheck(ctx context.Context, check *models.Check) error {
-	query := fmt.Sprintf("INSERT INTO %s (id, name, url, interval, state, email, active) VALUES(:id, :name, :url, :interval, :state, :email, :active)", s.Table)
+func (s *PostgreStorage) CreateCheck(ctx context.Context, check *models.Check) error {
+	query := fmt.Sprintf("INSERT INTO %s (id, name, url, interval, email, active) VALUES(:id, :name, :url, :interval, :email, :active)", s.ChecksTable)
 	_, err := s.db.NamedExecContext(ctx, query, check)
 	return err
 }
 
 func (s *PostgreStorage) GetChecks(ctx context.Context) ([]models.Check, error) {
 	var checks []models.Check
-	query := fmt.Sprintf("SELECT * FROM %s", s.Table)
+	query := fmt.Sprintf("SELECT * FROM %s", s.ChecksTable)
 	err := s.db.Select(&checks, query)
 	if err != nil {
 		return nil, err
@@ -92,7 +100,7 @@ func (s *PostgreStorage) GetChecks(ctx context.Context) ([]models.Check, error) 
 // TODO make this more efficient, use a query builder maybe
 func (s *PostgreStorage) UpdateCheck(ctx context.Context, id string, upd *models.CheckUpdate) (models.Check, error) {
 	var checks models.Check
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.ChecksTable)
 	err := s.db.GetContext(ctx, &checks, query, id)
 	if err != nil {
 		return models.Check{}, err
@@ -110,13 +118,9 @@ func (s *PostgreStorage) UpdateCheck(ctx context.Context, id string, upd *models
 		checks.URL = *upd.URL
 	}
 
-	if upd.State != nil {
-		checks.State = *upd.State
-	}
-
 	s.Logger.Infof("Updating check %s", checks.ID)
 
-	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, state = :state WHERE id = :id", s.Table)
+	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, WHERE id = :id", s.ChecksTable)
 	_, err = s.db.NamedExecContext(ctx, statement, &checks)
 	if err != nil {
 		return models.Check{}, err
@@ -127,7 +131,7 @@ func (s *PostgreStorage) UpdateCheck(ctx context.Context, id string, upd *models
 
 func (s *PostgreStorage) GetCheck(ctx context.Context, id string) (models.Check, error) {
 	var check models.Check
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.Table)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.ChecksTable)
 	err := s.db.GetContext(ctx, &check, query, id)
 	if err != nil {
 		return models.Check{}, err
@@ -137,7 +141,7 @@ func (s *PostgreStorage) GetCheck(ctx context.Context, id string) (models.Check,
 
 func (s *PostgreStorage) GetChecksByInterval(ctx context.Context, interval uint64) ([]models.Check, error) {
 	var checks []models.Check
-	query := fmt.Sprintf("SELECT * FROM %s WHERE interval=$1 and active", s.Table)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE interval=$1 and active", s.ChecksTable)
 	err := s.db.SelectContext(ctx, &checks, query, interval)
 	if err != nil {
 		return nil, err
@@ -146,10 +150,37 @@ func (s *PostgreStorage) GetChecksByInterval(ctx context.Context, interval uint6
 }
 
 func (s *PostgreStorage) DeleteCheck(ctx context.Context, id string) error {
-	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.Table)
+	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.ChecksTable)
 	_, err := s.db.Exec(query, id)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *PostgreStorage) GetStatus(ctx context.Context, checkID string) (models.Status, error) {
+	var status models.Status
+	query := fmt.Sprintf("SELECT * FROM %s WHERE check_id=$1 ORDER BY date DESC LIMIT 1", s.StatusesTable)
+	err := s.db.GetContext(ctx, &status, query, checkID)
+	if err != nil {
+		return models.Status{}, err
+	}
+	return status, nil
+}
+
+func (s *PostgreStorage) GetHistory(ctx context.Context, checkID string) ([]models.Status, error) {
+	var statuses []models.Status
+	query := fmt.Sprintf("SELECT * FROM %s WHERE check_id=$1", s.StatusesTable)
+	err := s.db.SelectContext(ctx, &statuses, query, checkID)
+	if err != nil {
+		return nil, err
+	}
+	return statuses, nil
+}
+
+func (s *PostgreStorage) UpdateStatus(ctx context.Context, checkID string, status *models.Status) error {
+	// TODO ugly, improve
+	query := fmt.Sprintf("INSERT INTO %s (id, check_id, content, date) VALUES(:id, :check_id, :content, :date)", s.StatusesTable)
+	_, err := s.db.NamedExecContext(ctx, query, status)
+	return err
 }

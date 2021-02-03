@@ -2,9 +2,11 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/samirettali/webmonitor/logger"
 	"github.com/samirettali/webmonitor/models"
@@ -140,23 +142,37 @@ func (m *Monitor) runCheck(check *models.Check) error {
 		return err
 	}
 
-	if body == check.State {
+	getCtx, getCancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer getCancel()
+	latestStatus, err := m.storage.GetStatus(getCtx, check.ID)
+	if err != nil {
+		return errors.Wrap(err, "can't get latest status")
+	}
+
+	if body == latestStatus.Content {
 		return nil
 	}
 
-	// check.State = body
+	fmt.Println(body, latestStatus.Content)
+
 	err = m.notifier.Notify(check)
 	if err != nil {
 		return errors.Wrap(err, "can't sent notification")
 	}
 
-	upd := models.CheckUpdate{State: &body}
-	ctx, cancel := context.WithTimeout(context.Background(), TIMEOUT)
-	defer cancel()
+	upd := models.Status{
+		ID:      uuid.NewString(),
+		CheckID: check.ID,
+		Content: body,
+		Date:    time.Now(),
+	}
 
-	_, err = m.storage.UpdateCheck(ctx, check.ID, &upd)
+	updCtx, updCancel := context.WithTimeout(context.Background(), TIMEOUT)
+	defer updCancel()
+
+	err = m.storage.UpdateStatus(updCtx, check.ID, &upd)
 	if err != nil {
-		return errors.Wrap(err, "can't update check")
+		return errors.Wrap(err, "can't update status")
 	}
 
 	return nil
