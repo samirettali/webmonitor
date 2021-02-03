@@ -46,11 +46,7 @@ const ChecksTable = ({ checks, onDelete }: ChecksListProps) => {
                 <RouterLink
                   to={{ pathname: `/check/${check.id}`, state: check }}
                 >
-                  {/* onClick={() => {
-                    history.push("/check", check);
-                  }} */}
-                  {/* > */}
-                  {check.name}
+                  <Link color="blue.500">{check.name}</Link>
                 </RouterLink>
               </Td>
               <Td>
