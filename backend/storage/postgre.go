@@ -61,7 +61,7 @@ func (s *PostgreStorage) initTables() error {
 	
 	CREATE TABLE IF NOT EXISTS %s (
 		id TEXT PRIMARY KEY NOT NULL,
-		check_id TEXT NOT NULL REFERENCES %s(id),
+		check_id TEXT NOT NULL REFERENCES %s(id) ON DELETE CASCADE ON UPDATE CASCADE,
 		content TEXT NOT NULL,
 		date TIMESTAMP NOT NULL
 	);
