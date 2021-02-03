@@ -21,9 +21,9 @@ There is no authorization or authentication at the moment, as this is something 
 ## Frontend
 The frontend is a Typescript [React](https://reactjs.org/) App using [Chakra](https://chakra-ui.com/) for the user interface.
 
-The interaction with the backend is done via [Axios](https://github.com/axios/axios) which uses interceptors to deserialize things like dates.
+The API calls are done with [Axios](https://github.com/axios/axios) which uses interceptors to deserialize things like dates.
 
-The state and cache handling is done via [React query](https://react-query.tanstack.com/).
+The state and cache handling is handled by [React query](https://react-query.tanstack.com/).
 
 ## TODO
 * [ ] Implement multiple notification services
