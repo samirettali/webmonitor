@@ -25,6 +25,13 @@ The API calls are done with [Axios](https://github.com/axios/axios) which uses i
 
 The state and cache handling is handled by [React query](https://react-query.tanstack.com/) using optimistic updates whenever possible.
 
+
+Main Dashboard:
+![](/screenshots/dashboard.png)
+
+Check creation:
+![](/screenshots/create.png)
+
 ## TODO
 * [ ] Implement multiple notification services
 * [ ] Make notification service per check
