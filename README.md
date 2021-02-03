@@ -19,7 +19,7 @@ There is no authorization or authentication at the moment, as this is something 
 
 
 ## Frontend
-The frontend the frontend is a [React](https://reactjs.org/) App using [Chakra](https://chakra-ui.com/) for the user interface.
+The frontend is a Typescript [React](https://reactjs.org/) App using [Chakra](https://chakra-ui.com/) for the user interface.
 
 The interaction with the backend is done via [Axios](https://github.com/axios/axios) which uses interceptors to deserialize things like dates.
 
