@@ -9,7 +9,7 @@ technologies.
 ## Backend
 The backend uses a Monitor object that runs at predefined intervals, fetches the checks for that interval and runs them.
 
-The checks are stored in a PostgreSQL database and the queries are done via plain SQL with the standard library, no ORM whatsoever.
+The checks are stored in a PostgreSQL database and the queries are done the the standard library with the [pq](https://pkg.go.dev/github.com/lib/pq@v1.9.0) driver, no ORM whatsoever.
 
 If a difference is detected, the user is alerted with an email using [Sendgrid](https://sendgrid.com/) and saves the body of the web page.
 
