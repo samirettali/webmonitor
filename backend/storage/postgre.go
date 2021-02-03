@@ -99,34 +99,39 @@ func (s *PostgreStorage) GetChecks(ctx context.Context) ([]models.Check, error) 
 
 // TODO make this more efficient, use a query builder maybe
 func (s *PostgreStorage) UpdateCheck(ctx context.Context, id string, upd *models.CheckUpdate) (models.Check, error) {
-	var checks models.Check
+	var check models.Check
 	query := fmt.Sprintf("SELECT * FROM %s WHERE id=$1", s.ChecksTable)
-	err := s.db.GetContext(ctx, &checks, query, id)
+	err := s.db.GetContext(ctx, &check, query, id)
 	if err != nil {
 		return models.Check{}, err
 	}
 
 	if upd.Email != nil {
-		checks.Email = *upd.Email
+		check.Email = *upd.Email
 	}
 
 	if upd.Interval != nil {
-		checks.Interval = *upd.Interval
+		check.Interval = *upd.Interval
 	}
 
 	if upd.URL != nil {
-		checks.URL = *upd.URL
+		check.URL = *upd.URL
 	}
 
-	s.Logger.Infof("Updating check %s", checks.ID)
+	if upd.Active != nil {
+		check.Active = *upd.Active
+	}
 
-	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, WHERE id = :id", s.ChecksTable)
-	_, err = s.db.NamedExecContext(ctx, statement, &checks)
+
+	s.Logger.Infof("Updating check %s", check.ID)
+
+	statement := fmt.Sprintf("UPDATE %s SET name = :name, email = :email, interval = :interval, url = :url, active = :active WHERE id = :id", s.ChecksTable)
+	_, err = s.db.NamedExecContext(ctx, statement, &check)
 	if err != nil {
 		return models.Check{}, err
 	}
 
-	return checks, nil
+	return check, nil
 }
 
 func (s *PostgreStorage) GetCheck(ctx context.Context, id string) (models.Check, error) {

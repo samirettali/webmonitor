@@ -36,10 +36,6 @@ const CreateSchema = Yup.object().shape({
   email: Yup.string().email("Invalid Email").required("Required"),
 });
 
-function isError(error: unknown): error is Error {
-  return error instanceof Error;
-}
-
 const CreateCheck = () => {
   const toast = useToast();
   const history = useHistory();

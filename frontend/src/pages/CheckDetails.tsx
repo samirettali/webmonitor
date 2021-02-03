@@ -60,7 +60,6 @@ const CheckDetails = () => {
     <>
       <Block title={check!.name} toolbar={toolbar}>
         <Stack spacing={4} w="100%">
-          {/* {isLoading && <Spinner size="xl" />} */}
           {isSuccess &&
             history?.map((status) => <StatusDetails status={status} />)}
         </Stack>
