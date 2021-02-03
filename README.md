@@ -23,7 +23,7 @@ The frontend is a Typescript [React](https://reactjs.org/) App using [Chakra](ht
 
 The API calls are done with [Axios](https://github.com/axios/axios) which uses interceptors to deserialize things like dates.
 
-The state and cache handling is handled by [React query](https://react-query.tanstack.com/).
+The state and cache handling is handled by [React query](https://react-query.tanstack.com/) using optimistic updates whenever possible.
 
 ## TODO
 * [ ] Implement multiple notification services
