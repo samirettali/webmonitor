@@ -22,7 +22,6 @@ type StorageHandler struct {
 
 type Response struct {
 	Error string `json:"error"`
-
 }
 
 func (h *StorageHandler) GetCheck(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +50,10 @@ func (h *StorageHandler) GetChecks(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Errorf("get: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+
+	if len(checks) == 0 {
+		checks = make([]models.Check, 0)
 	}
 
 	w.WriteHeader(http.StatusOK)

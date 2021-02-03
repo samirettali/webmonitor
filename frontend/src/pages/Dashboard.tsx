@@ -75,8 +75,8 @@ const Dashboard = () => {
           <Center>
             {isLoading && <Spinner size="xl" />}
             {isError && <Box>Could not connect to server.</Box>}
-            {isSuccess && checks && (
-              <ChecksTable checks={checks} onDelete={onDelete} />
+            {isSuccess && checks!.length > 0 && (
+              <ChecksTable checks={checks!} onDelete={onDelete} />
             )}
           </Center>
         </Stack>
