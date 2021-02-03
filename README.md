@@ -34,3 +34,4 @@ The state and cache handling is handled by [React query](https://react-query.tan
 * [x] Add validation to API
 * [ ] Use sensible defaults instead of erroring out
 * [ ] Add Dockerfiles
+* [ ] Add visual comparator
