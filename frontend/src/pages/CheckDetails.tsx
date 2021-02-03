@@ -1,15 +1,7 @@
-import {
-  Button,
-  Center,
-  Flex,
-  Spinner,
-  Stack,
-  toast,
-  useToast,
-} from "@chakra-ui/react";
-import React, { useEffect } from "react";
-import { QueryCache, useQuery } from "react-query";
-import { useHistory, useLocation, useParams } from "react-router-dom";
+import { Button, Spinner, Stack, useToast } from "@chakra-ui/react";
+import React from "react";
+import { useQuery } from "react-query";
+import { useHistory, useParams } from "react-router-dom";
 import { HISTORY_QUERY_KEY, QUERY_KEY } from "../constants";
 import * as api from "../api/checks";
 import Block from "../components/Container";
@@ -29,9 +21,8 @@ const CheckDetails = () => {
     async () => api.getCheck(id)
   );
 
-  const { isError: err2, data: history } = useQuery(
-    [HISTORY_QUERY_KEY, id],
-    async () => api.getHistory(id)
+  const { data: history } = useQuery([HISTORY_QUERY_KEY, id], async () =>
+    api.getHistory(id)
   );
 
   if (isLoading) {
