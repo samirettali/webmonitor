@@ -1,8 +1,29 @@
 # Webmonitor
 
-A website monitoring service.
+This is a website monitoring service that I wrote to monitor various
+websites.
 
-The backend is written in Go and the frontend is a React App using Chakra UI.
+I recently rewritten it completely as an excuse to learn about some web
+technologies.
+
+## Backend
+The backend uses a Monitor object that runs at predefined intervals, fetches the checks for that interval and runs them.
+
+The checks are stored in a PostgreSQL database and the queries are done via plain SQL with the standard library, no ORM whatsoever.
+
+If a difference is detected, the user is alerted with an email using [Sendgrid](https://sendgrid.com/) and saves the body of the web page.
+
+The interaction with the frontend is done via a simple CRUD API using [Gorilla Mux](https://github.com/gorilla/mux).
+
+There is no authorization or authentication at the moment, as this is something that is thought as selfhosted at home, but I might add it later on.
+
+
+## Frontend
+The frontend the frontend is a [React](https://reactjs.org/) App using [Chakra](https://chakra-ui.com/) for the user interface.
+
+The interaction with the backend is done via [Axios](https://github.com/axios/axios) which uses interceptors to deserialize things like dates.
+
+The state and cache handling is done via [React query](https://react-query.tanstack.com/).
 
 ## TODO
 * [ ] Implement multiple notification services
