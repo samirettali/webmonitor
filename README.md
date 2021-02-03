@@ -33,3 +33,4 @@ The state and cache handling is handled by [React query](https://react-query.tan
 * [x] Make API handler use storage instead of monitor
 * [x] Add validation to API
 * [ ] Use sensible defaults instead of erroring out
+* [ ] Add Dockerfiles
